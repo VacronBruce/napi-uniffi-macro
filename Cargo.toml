@@ -1,0 +1,30 @@
+[package]
+edition = "2021"
+name = "hello"
+version = "0.0.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[[bin]]
+# This can be whatever name makes sense for your project, but the rest of this tutorial assumes uniffi-bindgen.
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+
+[dependencies]
+bridge = { path = "macros"}
+napi = { version = "2.12.2", default-features = false, features = ["napi4"], optional = true}
+napi-derive = { version = "2.12.2", optional = true}
+uniffi = { version = "0.27", features = ["cli"], optional = true}
+
+[build-dependencies]
+napi-build = { version = "2.0.1", optional = true }
+uniffi = { version = "0.27", features = ["build"], optional = true}
+
+[profile.release]
+lto = true
+strip = "symbols"
+
+[features]
+node = ["napi", "napi-derive", "napi-build"]
+ffi = ["uniffi"]

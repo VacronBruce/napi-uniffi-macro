@@ -1,0 +1,51 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+
+[tasks.ignore-members]
+workspace = false
+
+[config]
+default_to_workspace = false
+
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--", "--emit=files"]
+
+[tasks.clean-artifact]
+command = "rm"
+args = ["-fr", 
+"libhello.dylib", 
+"node_modules", 
+"hello.py", 
+"hello.darwin-arm64.node", 
+"index.d.ts", 
+"index.js"]
+
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+dependencies = ["clean-artifact"]
+
+[tasks.setup-napi]
+command = "npm"
+args = ["install"]
+
+[tasks.test-napi]
+command = "npm"
+args = ["run", "test", "${@}"]
+dependencies = [
+    "setup-napi"
+]
+
+[tasks.test-uniffi]
+command = "sh"
+args = ["./scripts/test_uniffi.sh", "${@}"]
+
+[tasks.test]
+command = "echo"
+args = ["test done"]
+dependencies = [
+    "test-napi",
+    "test-uniffi"
+]
