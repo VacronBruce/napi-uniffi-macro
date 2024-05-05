@@ -1,6 +1,13 @@
 import unittest
-
+import asyncio
 import hello
+
+async def async_function():
+    print("Before")
+    result = await hello.get_be_token("Cindy", True)
+    print(result)
+    print("After")
+    return True
 
 class TestHello(unittest.TestCase):
     def test_sum(self):
@@ -13,5 +20,12 @@ class TestHello(unittest.TestCase):
         s = hello.service_new()
         self.assertEqual(hello.service_hello(s), "SERVICE:HELLO")
 
+    # async def test_async_get_be_token(self):
+    #     print("Before wait")
+    #     await asyncio.sleep(1)
+    #     print("Start wait")
+    #     self.assertIs(3,3)
+
 if __name__ == '__main__':
-    unittest.main() 
+    # unittest.main() 
+    asyncio.run(async_function())
