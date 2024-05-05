@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::*;
-use syn::{parse_quote, GenericArgument, Item, ReturnType, Type};
+use syn::{parse_quote, Block, GenericArgument, Item, ReturnType, Signature, Type};
 
 #[proc_macro_attribute]
 pub fn export_error(_attr: TokenStream, items: TokenStream) -> TokenStream {
@@ -86,6 +86,11 @@ pub fn export(_attr: TokenStream, items: TokenStream) -> TokenStream {
                 };
                 modify.sig.output = ReturnType::Type(Default::default(), Box::new(tt))
             }
+
+            let mut modify_ffi = f.clone();
+            if contain_async(modify_ffi.sig.clone()) {
+                modify_ffi = modify_for_ffi_body(modify_ffi);
+            }
             
             quote! {
                 #[cfg(feature = "node")]
@@ -94,7 +99,7 @@ pub fn export(_attr: TokenStream, items: TokenStream) -> TokenStream {
 
                 #[cfg(feature = "ffi")]
                 #[uniffi::export]
-                #f
+                #modify_ffi
             }
         }
         _ => {
@@ -132,6 +137,24 @@ fn get_result_first_arg(rt: ReturnType) -> Option<GenericArgument> {
     }
     
     None
+}
+
+fn contain_async(s: Signature) -> bool {
+    s.asyncness.is_some()
+}
+
+fn modify_for_ffi_body(f: syn::ItemFn) -> syn::ItemFn {
+    let mut modify = f.clone();
+    let body = f.block.clone();
+    let q = quote! {
+        {        
+            tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async 
+                #body
+            )
+        }
+    };
+    modify.block = syn::parse(q.into()).expect("Should parse success");
+    return modify;
 }
 
 fn print_type(t: Type) {
