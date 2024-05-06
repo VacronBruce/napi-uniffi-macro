@@ -99,3 +99,15 @@ pub async fn get_be_token(user: String, admin: bool) -> Result<String, CustomErr
 
   Ok(resp_body)
 }
+
+#[export(object)]
+pub struct RoomInfo {
+  pub name: String,
+  pub url: String,
+}
+
+#[export(object)]
+pub struct RoomInfoReply {
+  pub info: RoomInfo,
+  pub timestamp: i32,
+}

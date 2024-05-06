@@ -1,12 +1,11 @@
 use proc_macro::TokenStream;
 use quote::*;
-use syn::{parse_quote, Block, GenericArgument, Item, ReturnType, Signature, Type};
+use syn::{parse::{Parse, ParseStream}, *};
 
 #[proc_macro_attribute]
 pub fn export_error(_attr: TokenStream, items: TokenStream) -> TokenStream {
-    let stream2: proc_macro2::TokenStream = items.into();
-    let input = syn::parse2::<Item>(stream2).unwrap();
-    
+    let stream: proc_macro2::TokenStream = items.into();
+    let input = syn::parse2::<Item>(stream).unwrap();
     let q = match input {
         Item::Enum(e) => {
             // println!("enum ident is -> {:?}", e.ident);
@@ -41,9 +40,10 @@ pub fn export_error(_attr: TokenStream, items: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn export(_attr: TokenStream, items: TokenStream) -> TokenStream {
-    let stream2: proc_macro2::TokenStream = items.into();
-    let input = syn::parse2::<Item>(stream2).unwrap();
+pub fn export(attr: TokenStream, items: TokenStream) -> TokenStream {
+    let stream: proc_macro2::TokenStream = items.into();
+    let input = syn::parse2::<Item>(stream).unwrap();
+    let args = parse_macro_input!(attr as CustomAttributes);
     let q = match input {
         Item::Impl(im) => {
             quote! {
@@ -68,9 +68,11 @@ pub fn export(_attr: TokenStream, items: TokenStream) -> TokenStream {
             }
         }
         Item::Struct(s) => {
+            let napi_attr = generate_napi_attrs(args.identifiers);
+
             quote! {
                 #[cfg(feature = "node")]
-                #[napi]
+                #napi_attr
                 #s
 
                 #[cfg(feature = "ffi")]
@@ -157,28 +159,47 @@ fn modify_for_ffi_body(f: syn::ItemFn) -> syn::ItemFn {
     return modify;
 }
 
-fn print_type(t: Type) {
-    match t.clone() {
-        Type::Array(_) => println!("Array"),
-        Type::BareFn(_) => println!("Bare function"),
-        Type::Group(_) => println!("Group"),
-        Type::ImplTrait(_) => println!("Impl Trait"),
-        Type::Infer(_) => println!("Infer"),
-        Type::Macro(_) => println!("Macro"),
-        Type::Never(_) => println!("Never"),
-        Type::Paren(_) => println!("Parenthesized"),
-        Type::Path(path) => {
-            println!("We got path");
-            
+// Define a custom attribute struct
+struct CustomAttributes {
+    identifiers: Vec<Ident>,
+    ident_lit_pairs: Vec<(Ident, Lit)>,
+}
 
-        },
-        Type::Ptr(_) => println!("Pointer"),
-        Type::Reference(_) => println!("Reference"),
-        Type::Slice(_) => println!("Slice"),
-        Type::TraitObject(_) => println!("Trait Object"),
-        Type::Tuple(_) => println!("Tuple"),
-        _ => println!("Other"),
+impl Parse for CustomAttributes {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let mut identifiers = Vec::new();
+        let mut ident_lit_pairs: Vec<(Ident, Lit)> = Vec::new();
+
+        while !input.is_empty() {
+            let ident: Ident = input.parse()?;
+            if input.peek(Token![=]) {
+                //#[export(fed = "123")]
+                let _ = input.parse::<Token![=]>();
+                let lit: Lit = input.parse()?;
+                ident_lit_pairs.push((ident, lit));
+            } else {
+                //#[export(object)]
+                identifiers.push(ident);
+            }
+
+            if input.peek(Token![,]) {
+                //consume comma
+                let _ = input.parse::<Token![,]>();
+            }
+        }
+
+        Ok(CustomAttributes { identifiers, ident_lit_pairs })
     }
-    let type_string = quote::quote!(#t).to_string();
-    println!("type -> {}", type_string);
+}
+
+fn contain_key(identifiers: Vec<Ident>, key: &str) -> bool {
+    identifiers.iter().any(|ident| ident.to_string() == key)   
+}
+
+fn generate_napi_attrs(identifiers: Vec<Ident>) -> proc_macro2::TokenStream {
+    if contain_key(identifiers, "object") {
+        return quote! {#[napi(object)]};
+    } else {
+        return quote!{#[napi]};
+    }
 }
