@@ -46,14 +46,36 @@ pub fn export(attr: TokenStream, items: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as CustomAttributes);
     let q = match input {
         Item::Impl(im) => {
+            let mut napi_ii = im.clone();
+            let mut uniffi_ii = im.clone();
+            let mut napi_items: Vec<ImplItem> = vec![];
+            let mut ffi_items: Vec<ImplItem> = vec![];
+            for item in napi_ii.items {
+                if let ImplItem::Fn(f) = item {
+                    if contain_constructor(&f) {
+                        napi_items.push(ImplItem::Fn(add_napi_constructor_fn(f.clone())));
+                        ffi_items.push(ImplItem::Fn(add_ffi_constructor_fn(f)));
+                    } else {
+                        napi_items.push(ImplItem::Fn(f.clone()));
+                        ffi_items.push(ImplItem::Fn(f));
+                    }
+                } else {
+                    napi_items.push(item.clone());
+                    ffi_items.push(item);
+                }
+            }
+
+            napi_ii.items = napi_items;
+            uniffi_ii.items = ffi_items;
+            
             quote! {
                 #[cfg(feature = "node")]
                 #[napi]
-                #im
+                #napi_ii
 
                 #[cfg(feature = "ffi")]
                 #[uniffi::export]
-                #im
+                #uniffi_ii
             }
         }
         Item::Enum(e) => {
@@ -91,7 +113,7 @@ pub fn export(attr: TokenStream, items: TokenStream) -> TokenStream {
 
             let mut modify_ffi = f.clone();
             if contain_async(modify_ffi.sig.clone()) {
-                modify_ffi = modify_for_ffi_body(modify_ffi);
+                modify_ffi = add_tokio_async(modify_ffi);
             }
             
             quote! {
@@ -145,7 +167,7 @@ fn contain_async(s: Signature) -> bool {
     s.asyncness.is_some()
 }
 
-fn modify_for_ffi_body(f: syn::ItemFn) -> syn::ItemFn {
+fn add_tokio_async(f: syn::ItemFn) -> syn::ItemFn {
     let mut modify = f.clone();
     let body = f.block.clone();
     let q = quote! {
@@ -202,4 +224,35 @@ fn generate_napi_attrs(identifiers: Vec<Ident>) -> proc_macro2::TokenStream {
     } else {
         return quote!{#[napi]};
     }
+}
+
+fn contain_constructor(f: &ImplItemFn) -> bool {
+    let attr = f.attrs.first();
+    if let Some(a) = attr {
+        return quote!{#a}.to_string().contains("constructor");
+    }
+    return false;
+}
+
+fn add_ffi_constructor_fn(f: ImplItemFn) -> ImplItemFn {
+    let mut modify = f.clone();
+    let attr: Attribute = parse_quote!{#[uniffi::constructor]};
+    modify.attrs = vec![attr];
+    let body = f.block.clone();
+    let q = quote! {
+        {Arc::new(#body)}
+    };
+    let tt: Type = parse_quote! {
+        Arc<Self>
+    };
+    modify.sig.output = ReturnType::Type(Default::default(), Box::new(tt));
+    modify.block = syn::parse(q.into()).expect("Should parse success");
+    modify
+}
+
+fn add_napi_constructor_fn(f: ImplItemFn) -> ImplItemFn {
+    let mut modify = f.clone();
+    let attr: Attribute = parse_quote!{#[napi(constructor)]};
+    modify.attrs = vec![attr];
+    modify
 }
