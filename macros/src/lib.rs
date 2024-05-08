@@ -1,9 +1,11 @@
 mod attr;
 mod item_impl;
+mod item_trait;
 mod util;
 
 use attr::*;
 use item_impl::parse_impl;
+use item_trait::parse_item_trait;
 use util::*;
 
 use proc_macro::TokenStream;
@@ -16,7 +18,6 @@ pub fn export_error(_attr: TokenStream, items: TokenStream) -> TokenStream {
     let input = syn::parse2::<Item>(stream).unwrap();
     let q = match input {
         Item::Enum(e) => {
-            // println!("enum ident is -> {:?}", e.ident);
             let ident = e.ident.clone();
             quote! {   
                 #[cfg(feature = "node")]
@@ -81,6 +82,9 @@ pub fn export(attr: TokenStream, items: TokenStream) -> TokenStream {
         }
         Item::Fn(f) => {
             parse_item_fn(f)
+        }
+        Item::Trait(it) => {
+            parse_item_trait(it)
         }
         _ => {
             quote! {

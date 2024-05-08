@@ -1,4 +1,4 @@
-use syn::{GenericArgument, ReturnType, Type};
+use syn::{Field, GenericArgument, LitStr, ReturnType, Type};
 
 pub fn parse_result_type(rt: ReturnType) -> Option<GenericArgument> {
     let t = match rt {
@@ -25,4 +25,12 @@ pub fn parse_result_type(rt: ReturnType) -> Option<GenericArgument> {
     }
     
     None
+}
+
+pub fn string_to_ident(s: String) -> proc_macro2::Ident {
+    syn::parse_str(&s).expect("Should parse success")
+}
+
+pub fn string_to_type(s: String) -> syn::Type {
+    syn::parse_str(&s).expect("Should parse success")
 }
