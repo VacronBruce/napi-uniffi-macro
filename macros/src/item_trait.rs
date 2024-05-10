@@ -95,7 +95,7 @@ fn generate_trait_impl(f: TraitItemFn) -> TokenStream {
             rx.recv().unwrap_or_default().into()        
         }
     } else {
-        quote! { self.#cb.call(Ok(#tsfn_names), ThreadsafeFunctionCallMode::NonBlocking)}
+        quote! { self.#cb.call(Ok(#tsfn_names), ThreadsafeFunctionCallMode::NonBlocking); }
     };
     quote! {
         #sign {

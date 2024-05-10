@@ -12,105 +12,108 @@ uniffi::setup_scaffolding!();
 #[macro_use]
 extern crate napi_derive;
 
-// #[export]
-// pub fn sum(a: i32, b: i32) -> i32 {
-//   a + b
-// }
+#[cfg(feature = "node")]
+use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 
-// #[export]
-// pub enum Week {
-//   MON,
-//   TUE,
-//   WED,
-//   THU,
-//   FRI,
-//   SAT,
-//   SUN,
-// }
+#[export]
+pub fn sum(a: i32, b: i32) -> i32 {
+  a + b
+}
 
-// #[export]
-// pub fn get_week_value(w: Week) -> i32 {
-//   w as i32
-// }
+#[export]
+pub enum Week {
+  MON,
+  TUE,
+  WED,
+  THU,
+  FRI,
+  SAT,
+  SUN,
+}
 
-// #[export]
-// pub struct Service {}
+#[export]
+pub fn get_week_value(w: Week) -> i32 {
+  w as i32
+}
 
-// #[export]
-// impl Service {
-//   fn hello(&self) -> String {
-//     "SERVICE:HELLO".to_owned()
-//   }
-// }
+#[export]
+pub struct Service {}
 
-// #[export]
-// pub fn Service_new() -> Service {
-//   Service {}
-// }
+#[export]
+impl Service {
+  fn hello(&self) -> String {
+    "SERVICE:HELLO".to_owned()
+  }
+}
 
-// #[export]
-// pub fn Service_hello(s: &Service) -> String {
-//   s.hello()
-// }
+#[export]
+pub fn Service_new() -> Service {
+  Service {}
+}
 
-// #[export_error]
-// #[derive(Debug, thiserror::Error)]
-// pub enum CustomError {
-//   #[error("reqwest error !!")]
-//   Http(#[from] reqwest::Error),
+#[export]
+pub fn Service_hello(s: &Service) -> String {
+  s.hello()
+}
 
-//   #[error("json error !!")]
-//   Json(#[from] serde_json::Error),
+#[export_error]
+#[derive(Debug, thiserror::Error)]
+pub enum CustomError {
+  #[error("reqwest error !!")]
+  Http(#[from] reqwest::Error),
 
-//   #[error("Other error")]
-//   Other,
-// }
+  #[error("json error !!")]
+  Json(#[from] serde_json::Error),
 
-// #[export]
-// pub async fn get_be_token(user: String, admin: bool) -> Result<String, CustomError> {
-//   // Create request body
-//   let body_data = json!({
-//       "identity": user,
-//       "name": user,
-//       "is_admin": admin,
-//   });
+  #[error("Other error")]
+  Other,
+}
 
-//   let body = serde_json::to_vec(&body_data).map_err(|e| CustomError::Json(e))?;
+#[export]
+pub async fn get_be_token(user: String, admin: bool) -> Result<String, CustomError> {
+  // Create request body
+  let body_data = json!({
+      "identity": user,
+      "name": user,
+      "is_admin": admin,
+  });
 
-//   // Create HTTP client
-//   let client = Client::new();
+  let body = serde_json::to_vec(&body_data).map_err(|e| CustomError::Json(e))?;
 
-//   // Create request
-//   let be_url = "https://sg-be.jointell.net"; // Replace with your backend URL
-//   let req = client
-//     .post(&format!("{}/generate-token", be_url))
-//     .header("Authorization", "Basic dXNlcjpzaGVueHVuMQ==")
-//     .header("Content-Type", "application/json")
-//     .body(body)
-//     .build()
-//     .map_err(|e| CustomError::Http(e))?;
+  // Create HTTP client
+  let client = Client::new();
 
-//   let resp = client
-//     .execute(req)
-//     .await
-//     .map_err(|e| CustomError::Http(e))?;
+  // Create request
+  let be_url = "https://sg-be.jointell.net"; // Replace with your backend URL
+  let req = client
+    .post(&format!("{}/generate-token", be_url))
+    .header("Authorization", "Basic dXNlcjpzaGVueHVuMQ==")
+    .header("Content-Type", "application/json")
+    .body(body)
+    .build()
+    .map_err(|e| CustomError::Http(e))?;
 
-//   let resp_body = resp.text().await.map_err(|e| CustomError::Http(e))?;
+  let resp = client
+    .execute(req)
+    .await
+    .map_err(|e| CustomError::Http(e))?;
 
-//   Ok(resp_body)
-// }
+  let resp_body = resp.text().await.map_err(|e| CustomError::Http(e))?;
 
-// #[export(object)]
-// pub struct RoomInfo {
-//   pub name: String,
-//   pub url: String,
-// }
+  Ok(resp_body)
+}
 
-// #[export(object)]
-// pub struct RoomInfoReply {
-//   pub info: RoomInfo,
-//   pub timestamp: i32,
-// }
+#[export(object)]
+pub struct RoomInfo {
+  pub name: String,
+  pub url: String,
+}
+
+#[export(object)]
+pub struct RoomInfoReply {
+  pub info: RoomInfo,
+  pub timestamp: i32,
+}
 
 #[export]
 pub async fn add(a: u32, b: u32) -> u32 {
@@ -118,7 +121,7 @@ pub async fn add(a: u32, b: u32) -> u32 {
 }
 
 #[export]
-pub trait BackupTrait {
+pub trait BackupTrait: Send + Sync + 'static {
   fn get_message(&self) -> String;
   fn on_message(&self, msg: String);
 }

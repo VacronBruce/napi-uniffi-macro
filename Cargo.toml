@@ -20,6 +20,7 @@ tokio = { version = "1", features = ["rt", "time", "macros",] }
 
 napi = { version = "2.12.2", default-features = false, features = ["napi4", "async"], optional = true}
 napi-derive = { version = "2.12.2", optional = true}
+oneshot = { version = "0.1.6", optional = true }
 uniffi = { version = "0.27", features = ["cli"], optional = true}
 # uniffi = { version = "0.27", features = ["cli"], optional = false}
 
@@ -33,6 +34,6 @@ lto = true
 strip = "symbols"
 
 [features]
-node = ["napi", "napi-derive", "napi-build"]
+node = ["napi", "napi-derive", "napi-build", "oneshot"]
 ffi = ["uniffi"]
 # ffi = []
