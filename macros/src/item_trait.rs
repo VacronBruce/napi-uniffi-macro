@@ -1,6 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{punctuated::Punctuated, FnArg, Ident, ItemTrait, ReturnType, TraitItem, TraitItemFn, Type};
+use syn::{Ident, ItemTrait, ReturnType, TraitItem, TraitItemFn, Type};
+
+use crate::util::*;
 
 use crate::{string_to_ident, string_to_type};
 
@@ -102,27 +104,4 @@ fn generate_trait_impl(f: TraitItemFn) -> TokenStream {
             #body
         }
     }
-}
-
-
-fn extract_argument_types(args: &Punctuated<FnArg, syn::token::Comma>) -> String {
-    let v: Vec<String> = args.iter().filter_map(|arg| {
-        match arg {
-            FnArg::Typed(t) => { let ty = &t.ty; Some(quote!(#ty).to_string()) },
-            _ => None,
-        }
-    }).collect();
-
-    format!("({})", v.join(","))
-}
-
-fn extract_argument_names(args: &Punctuated<FnArg, syn::token::Comma>) -> String {
-    let v: Vec<String> = args.iter().filter_map(|arg| {
-        match arg {
-            FnArg::Typed(t) => { let p = &t.pat; Some(quote!(#p).to_string()) },
-            _ => None,
-        }
-    }).collect();
-
-    format!("({})", v.join(","))
 }

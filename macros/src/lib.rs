@@ -20,6 +20,9 @@ pub fn export_error(_attr: TokenStream, items: TokenStream) -> TokenStream {
         Item::Enum(e) => {
             let ident = e.ident.clone();
             quote! {   
+                #[cfg(test)]
+                #e
+                
                 #[cfg(feature = "node")]
                 #e
 
@@ -59,6 +62,9 @@ pub fn export(attr: TokenStream, items: TokenStream) -> TokenStream {
         }
         Item::Enum(e) => {
             quote! {       
+                #[cfg(test)]
+                #e
+
                 #[cfg(feature = "node")]
                 #[napi]
                 #e
@@ -70,7 +76,14 @@ pub fn export(attr: TokenStream, items: TokenStream) -> TokenStream {
         }
         Item::Struct(s) => {
             let napi_attr = generate_napi_attrs(&args);
+            let mut ffi_construct: Option<proc_macro2::TokenStream> = None;
+            if args.contain_key("object") {
+                ffi_construct = Some(create_ffi_constructor(s.clone()));
+            }
             quote! {
+                #[cfg(test)]
+                #s
+                
                 #[cfg(feature = "node")]
                 #napi_attr
                 #s
@@ -78,10 +91,12 @@ pub fn export(attr: TokenStream, items: TokenStream) -> TokenStream {
                 #[cfg(feature = "ffi")]
                 #[derive(uniffi::Object)]
                 #s
+
+                #ffi_construct
             }
         }
         Item::Fn(f) => {
-            parse_item_fn(f)
+            parse_item_fn(f, args)
         }
         Item::Trait(it) => {
             parse_item_trait(it)
@@ -104,7 +119,7 @@ fn generate_napi_attrs(args: &CustomAttributes) -> proc_macro2::TokenStream {
     }
 }
 
-fn parse_item_fn(f: ItemFn) -> proc_macro2::TokenStream {
+fn parse_item_fn(f: ItemFn, args: CustomAttributes) -> proc_macro2::TokenStream {
     let mut modify = f.clone();
     if let Some(arg) = parse_result_type(modify.sig.output.clone()) {
         let tt: Type = parse_quote! {
@@ -113,12 +128,15 @@ fn parse_item_fn(f: ItemFn) -> proc_macro2::TokenStream {
         modify.sig.output = ReturnType::Type(Default::default(), Box::new(tt))
     }
 
-    let mut modify_ffi = f.clone();
+    let mut modify_ffi = add_reference_to_ffi_inputs(args, f.clone());
     if contain_async(modify_ffi.sig.clone()) {
         modify_ffi = add_tokio_async(modify_ffi);
     }
     
     quote! {
+        #[cfg(test)]
+        #f
+
         #[cfg(feature = "node")]
         #[napi]
         #modify
@@ -147,3 +165,82 @@ fn add_tokio_async(f: syn::ItemFn) -> syn::ItemFn {
     modify.block = syn::parse(q.into()).expect("Should parse success");
     return modify;
 }
+
+fn is_builtin_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(path) => {
+            // Assuming the first segment of the path is the type name
+            if let Some(segment) = path.path.segments.first() {
+                let ident = &segment.ident;
+                // Check if the identifier matches a known built-in type
+                match ident.to_string().as_str() {
+                    "i8" | "i16" | "i32" | "i64" |
+                    "u8" | "u16" | "u32" | "u64" |
+                    "f32" | "f64" |
+                    "bool" | "Vec<u8>" | "SystemTime" | "Duration"  => true,
+                    _ => false,
+                }
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
+fn create_ffi_constructor(s: ItemStruct) -> proc_macro2::TokenStream {
+    let ss = s.clone();
+    let ident = ss.ident;
+    let fields = ss.fields.clone();
+    let v: Vec<(&Ident, &Type)> = fields.iter()
+    .filter_map(|f| if let Some(t) = &f.ident {
+        Some((t, &f.ty))
+    } else {
+        None
+    }).collect();
+
+    let getters = v.iter().fold(quote!{}, |acc, f| {
+        let ident = f.0;
+        let ty = f.1;
+        let content = if is_builtin_type(ty) { quote!{self.#ident} } else {quote!{self.#ident.clone()}};
+        quote! {
+            #acc
+            fn #ident (&self) -> #ty {
+                #content
+            }
+        }
+    });
+
+    let args = v.iter().fold(quote!{}, |acc, f| 
+        {
+            let name = f.0; 
+            let ty = f.1; 
+            if is_builtin_type(ty) {
+                quote!{#acc #name: #ty,}
+            } else {
+                quote!{#acc #name: &#ty,}
+            }
+        }
+    );
+
+    let types = v.iter().fold(quote!{}, |acc, f| {
+        let name = f.0;
+        if is_builtin_type(f.1) {
+            quote!{#acc #name,}
+        } else {
+            quote!{#acc #name: #name.clone(),}
+        }
+    });
+
+    quote! {
+        #[cfg(feature = "ffi")]
+        #[uniffi::export]
+        impl #ident {
+            #[uniffi::constructor]
+            pub fn new(#args) -> Self {
+                Self { #types }
+            }
+            #getters
+        }
+    }
+} 
